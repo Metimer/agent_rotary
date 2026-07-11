@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::{PyDict, PyInt, PyList};
 use pyo3::IntoPyObjectExt;
 use serde_json::Value;
 
@@ -96,6 +96,12 @@ fn py_to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
         Ok(Value::Bool(b))
     } else if let Ok(i) = obj.extract::<i64>() {
         Ok(serde_json::Number::from(i).into())
+    } else if let Ok(i) = obj.extract::<u64>() {
+        Ok(serde_json::Number::from(i).into())
+    } else if obj.is_instance_of::<PyInt>() {
+        Err(pyo3::exceptions::PyOverflowError::new_err(
+            "integer is outside the JSON i64 or u64 range",
+        ))
     } else if let Ok(f) = obj.extract::<f64>() {
         serde_json::Number::from_f64(f)
             .map(Value::Number)
@@ -127,6 +133,8 @@ fn value_to_py(py: Python<'_>, v: &Value) -> PyResult<Py<PyAny>> {
         Value::Bool(b) => b.into_py_any(py),
         Value::Number(n) => {
             if let Some(i) = n.as_i64() {
+                i.into_py_any(py)
+            } else if let Some(i) = n.as_u64() {
                 i.into_py_any(py)
             } else {
                 n.as_f64().unwrap_or(0.0).into_py_any(py)

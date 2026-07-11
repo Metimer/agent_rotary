@@ -279,7 +279,12 @@ async def stage3_feedback_loop() -> None:
         node_id="code",
         provider=coder,
         model=DEFAULT_MODELS[coder],
-        prompt="Plan :\n{{plan.output}}\n\nGénère le code Python.",
+        prompt=(
+            "Plan :\n{{plan.output}}\n\n"
+            "Feedback précédent :\n"
+            "{{review.feedback|Aucun feedback, première version.}}\n\n"
+            "Génère le code Python corrigé."
+        ),
     )
     wf.add_node(
         node_id="review",
@@ -322,10 +327,10 @@ async def stage3_feedback_loop() -> None:
         print(f"  {CYAN}feedback : {truncate(result.get('review.feedback', ''), 200)}{RESET}")
         print(f"  {CYAN}code final ({len(result.get('code.output', ''))} car.){RESET}")
     except Exception as e:  # noqa: BLE001
-        # Le garde-fou max_iterations lève une RuntimeError si la boucle diverge.
+        # Le garde-fou max_steps lève une RuntimeError si la boucle diverge.
         check("feedback loop", False, f"{type(e).__name__}: {e}")
-        if "Max iterations" in str(e) or "iterations" in str(e).lower():
-            print(f"  {YELLOW}→ boucle attendue non convergée en 10 itérations "
+        if "Max steps" in str(e) or "steps" in str(e).lower():
+            print(f"  {YELLOW}→ boucle attendue non convergée avant la limite max_steps "
                   f"(normal si le reviewer est trop strict).{RESET}")
         traceback.print_exc()
 

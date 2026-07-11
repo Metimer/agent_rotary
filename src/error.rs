@@ -13,8 +13,8 @@ pub enum OrchestratorError {
     #[error("Workflow dead-end at node '{0}' (no outgoing edge satisfied)")]
     DeadEnd(String),
 
-    #[error("Max iterations ({0}) reached — possible feedback loop runaway")]
-    MaxIterations(usize),
+    #[error("Max steps ({0}) reached - possible feedback loop runaway")]
+    MaxSteps(usize),
 
     #[error("Missing required context key: {0}")]
     MissingContext(String),
@@ -37,6 +37,9 @@ pub enum OrchestratorError {
 
     #[error("Configuration error: {0}")]
     Config(String),
+
+    #[error("Python callback failed: {0}")]
+    Python(pyo3::PyErr),
 
     #[error(transparent)]
     Serde(#[from] serde_json::Error),
@@ -61,7 +64,14 @@ impl From<OrchestratorError> for pyo3::PyErr {
             OrchestratorError::Config(_) | OrchestratorError::Template(_) => {
                 PyValueError::new_err(e.to_string())
             }
+            OrchestratorError::Python(err) => err,
             other => PyRuntimeError::new_err(other.to_string()),
         }
+    }
+}
+
+impl From<pyo3::PyErr> for OrchestratorError {
+    fn from(err: pyo3::PyErr) -> Self {
+        OrchestratorError::Python(err)
     }
 }

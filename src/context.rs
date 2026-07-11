@@ -4,7 +4,7 @@ use std::collections::HashMap;
 /// Sac de données dynamique partagé entre les nodes pendant l'exécution du workflow.
 /// Chaque node écrit son résultat sous la clé `<node_id>.output` (et toute clé
 /// arbitraire qu'elle souhaite exposer, ex. `<node_id>.score`).
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Context {
     data: HashMap<String, Value>,
 }

@@ -46,14 +46,15 @@ impl ProviderRegistry {
     /// Construit le registry par défaut en lisant les variables d'environnement.
     /// Seuls les providers dont la clé est présente sont enregistrés.
     pub fn from_env() -> Self {
+        let _ = dotenvy::dotenv();
         let mut r = ProviderRegistry::new();
-        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+        if env_key_is_set("ANTHROPIC_API_KEY") {
             r.register(Arc::new(claude::ClaudeProvider::from_env()));
         }
-        if std::env::var("MOONSHOT_API_KEY").is_ok() {
+        if env_key_is_set("MOONSHOT_API_KEY") {
             r.register(Arc::new(kimi::KimiProvider::from_env()));
         }
-        if std::env::var("OPENAI_API_KEY").is_ok() {
+        if env_key_is_set("OPENAI_API_KEY") {
             r.register(Arc::new(codex::CodexProvider::from_env()));
         }
         r
@@ -71,6 +72,10 @@ impl ProviderRegistry {
     pub fn names(&self) -> Vec<String> {
         self.providers.keys().cloned().collect()
     }
+}
+
+fn env_key_is_set(name: &str) -> bool {
+    std::env::var(name).is_ok_and(|value| !value.trim().is_empty())
 }
 
 impl Default for ProviderRegistry {

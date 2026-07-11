@@ -67,3 +67,36 @@ def test_workflow_edge_before_node_is_accepted():
     # (la validation a lieu à l'exécution). On vérifie juste que ça ne panique pas.
     wf = Workflow()
     wf.add_edge("a", "b")  # toléré à la construction
+
+
+def test_context_large_unsigned_integer_roundtrip():
+    value = 2**63 + 17
+    ctx = Context({"value": value})
+    assert ctx.get("value") == value
+
+
+def test_context_out_of_json_range_integer_raises():
+    with pytest.raises(OverflowError):
+        Context({"value": 2**128})
+
+
+def test_workflow_rejects_invalid_max_steps():
+    with pytest.raises(ValueError, match="max_steps"):
+        Workflow(max_steps=0)
+
+    wf = Workflow()
+    with pytest.raises(ValueError, match="max_steps"):
+        wf.set_max_steps(0)
+
+
+def test_workflow_condition_must_be_callable():
+    wf = Workflow()
+    with pytest.raises(TypeError, match="callable"):
+        wf.add_conditional_edge("review", "exit", True)
+
+
+@pytest.mark.asyncio
+async def test_execute_preserves_configuration_error_type():
+    wf = Workflow()
+    with pytest.raises(ValueError, match="no entry node"):
+        await wf.execute(Context())

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3_async_runtimes::tokio::future_into_py;
 
@@ -22,11 +23,12 @@ pub struct PyWorkflow {
 #[pymethods]
 impl PyWorkflow {
     #[new]
-    fn new() -> Self {
-        PyWorkflow {
-            inner: Workflow::new(),
+    #[pyo3(signature = (max_steps=100))]
+    fn new(max_steps: usize) -> PyResult<Self> {
+        Ok(PyWorkflow {
+            inner: Workflow::with_max_steps(max_steps)?,
             registry: ProviderRegistry::from_env(),
-        }
+        })
     }
 
     /// Ajoute une node au workflow.
@@ -45,13 +47,18 @@ impl PyWorkflow {
             .get(provider)
             .ok_or_else(|| OrchestratorError::ProviderNotFound(provider.to_string()))?;
         let node = Node::new(node_id, p, model, prompt.to_string(), system);
-        self.inner.add_node(node);
+        self.inner.add_node(node)?;
         Ok(())
     }
 
     /// Marque la node d'entrée (sinon la première ajoutée est utilisée).
     fn set_entry(&mut self, node_id: &str) {
         self.inner.set_entry(node_id);
+    }
+
+    fn set_max_steps(&mut self, max_steps: usize) -> PyResult<()> {
+        self.inner.set_max_steps(max_steps)?;
+        Ok(())
     }
 
     /// Arête directe `from -> to`.
@@ -62,8 +69,16 @@ impl PyWorkflow {
 
     /// Arête conditionnelle : `to` n'est franchie que si `cond(ctx)` renvoie True.
     /// Permet les boucles de feedback (note < seuil => retour au coder).
-    fn add_conditional_edge(&mut self, from: &str, to: &str, cond: Py<PyAny>) -> PyResult<()> {
-        let condition: ConditionFn = make_condition(cond);
+    fn add_conditional_edge(
+        &mut self,
+        from: &str,
+        to: &str,
+        cond: Bound<'_, PyAny>,
+    ) -> PyResult<()> {
+        if !cond.is_callable() {
+            return Err(PyTypeError::new_err("cond must be callable"));
+        }
+        let condition: ConditionFn = make_condition(cond.unbind());
         self.inner.add_conditional_edge(from, to, condition);
         Ok(())
     }
@@ -87,33 +102,22 @@ impl PyWorkflow {
         let inner = self.inner.clone();
 
         future_into_py(py, async move {
-            let result = inner
-                .execute(rust_ctx)
-                .await
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let result = inner.execute(rust_ctx).await.map_err(PyErr::from)?;
             Ok(PyContext::from(result))
         })
     }
 }
 
 /// Convertit un callable Python `cond(ctx) -> bool` en `ConditionFn` Rust
-/// (`Arc<dyn Fn(&Context) -> bool + Send + Sync>`). Le callable est invoqué via
+/// (`Arc<dyn Fn(&Context) -> OrchestratorResult<bool> + Send + Sync>`). Le callable est invoqué via
 /// `Python::attach` à chaque évaluation (les conditions restent bon marché :
 /// prédicats sur le contexte).
 fn make_condition(callable: Py<PyAny>) -> ConditionFn {
-    Arc::new(move |ctx: &Context| -> bool {
-        Python::attach(|py| {
+    Arc::new(move |ctx: &Context| {
+        Python::attach(|py| -> PyResult<bool> {
             let py_ctx = PyContext { inner: ctx.clone() };
-            match callable.call1(py, (py_ctx,)) {
-                Ok(res) => res.extract::<bool>(py).unwrap_or_else(|e| {
-                    e.print(py);
-                    false
-                }),
-                Err(e) => {
-                    e.print(py);
-                    false
-                }
-            }
+            callable.call1(py, (py_ctx,))?.extract::<bool>(py)
         })
+        .map_err(OrchestratorError::from)
     })
 }

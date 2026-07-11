@@ -236,7 +236,11 @@ async def main():
         node_id="code",
         provider="kimi",
         model="moonshot-v1-128k",
-        prompt="Implémente ce plan :\n{{plan.output}}",
+        prompt=(
+            "Implémente ce plan :\n{{plan.output}}\n\n"
+            "Feedback précédent :\n"
+            "{{review.feedback|Aucun feedback, première version.}}"
+        ),
     )
 
     # 3. REVIEW — Codex note le code.
@@ -278,17 +282,18 @@ python examples/main.py
 
 ## Référence de l'API Python
 
-### `Workflow()`
+### `Workflow(max_steps=100)`
 
-Construit un workflow vide. Le registry de providers est initialisé depuis
+Construit un workflow vide avec une limite configurable du nombre de nodes exécutées. Le registry de providers est initialisé depuis
 l'environnement.
 
 | Méthode | Description |
 |---|---|
 | `add_node(node_id, provider, model, prompt, system=None)` | Ajoute une étape. `provider` doit être un nom enregistré. |
 | `set_entry(node_id)` | Définit la node d'entrée (sinon la première ajoutée). |
+| `set_max_steps(max_steps)` | Modifie le garde-fou anti-boucle (valeur strictement positive). |
 | `add_edge(from, to)` | Arête directe `from → to`. |
-| `add_conditional_edge(from, to, cond)` | Arête franchie si `cond(ctx)` renvoie `True`. |
+| `add_conditional_edge(from, to, cond)` | Arête franchie si `cond(ctx)` renvoie `True`; toute exception est propagée. |
 | `providers()` | Liste les noms de providers disponibles. |
 | `await execute(ctx)` | Exécute le workflow. Renvoie le `Context` final. |
 

@@ -35,7 +35,9 @@ async def main() -> None:
         model="moonshot-v1-128k",
         prompt=(
             "Implémente ce plan en code de production (Rust) :\n\n"
-            "{{plan.output}}"
+            "{{plan.output}}\n\n"
+            "Feedback de la review précédente :\n"
+            "{{review.feedback|Aucun feedback, première version.}}"
         ),
     )
 

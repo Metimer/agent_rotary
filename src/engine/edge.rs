@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use crate::context::Context;
+use crate::error::OrchestratorResult;
 
 /// Prédicat de transition évalué sur le `Context`.
-pub type ConditionFn = Arc<dyn Fn(&Context) -> bool + Send + Sync>;
+pub type ConditionFn = Arc<dyn Fn(&Context) -> OrchestratorResult<bool> + Send + Sync>;
 
 /// Transition entre nodes. Peut être inconditionnelle ou conditionnelle
 /// (cœur des boucles de feedback : note < seuil => retour vers le coder).
@@ -40,9 +41,9 @@ impl Edge {
     }
 
     /// Évalue la condition (toujours `true` pour une arête directe).
-    pub fn passes(&self, ctx: &Context) -> bool {
+    pub fn passes(&self, ctx: &Context) -> OrchestratorResult<bool> {
         match self {
-            Edge::Direct { .. } => true,
+            Edge::Direct { .. } => Ok(true),
             Edge::Conditional { condition, .. } => condition(ctx),
         }
     }
